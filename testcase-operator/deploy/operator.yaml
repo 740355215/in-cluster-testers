@@ -1,0 +1,53 @@
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: testcase-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: testcase-operator
+  template:
+    metadata:
+      labels:
+        name: testcase-operator
+    spec:
+      serviceAccountName: testcase-operator
+      containers:
+        - name: testcase-operator
+          # Replace this with the built image name
+          image: ccr.ccs.tencentyun.com/paas/testcase-operator:v0.2
+          ports:
+          - containerPort: 60000
+            name: metrics
+          command:
+          - testcase-operator
+          imagePullPolicy: Always
+          env:
+            - name: WATCH_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OPERATOR_NAME
+              value: "testcase-operator"
+            - name: SIDECAR_IMAGE
+              value: "ccr.ccs.tencentyun.com/paas/testcase-sidecar:v0.0"
+            - name: SIDECAR_PORT
+              value: "8099"
+            - name: DELAY_SECONDS_AFTER_TESETER_PASSED
+              value: "30"
+            - name: DELAY_SECONDS_AFTER_TESETER_FAILED
+              value: "300"
+            - name: TESTCASE_SUMMARY
+              value: "testcase-summary"
+          volumeMounts:
+            - mountPath: /etc/localtime
+              name: localtime
+      volumes:
+        - name: localtime
+          hostPath:
+            path: /etc/localtime

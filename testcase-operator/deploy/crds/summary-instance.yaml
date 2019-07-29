@@ -1,0 +1,4 @@
+apiVersion: tke.tencentcloud.com/v1
+kind: Summary
+metadata:
+  name: testcase-summary

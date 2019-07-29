@@ -1,0 +1,7 @@
+apiVersion: tke.tencentcloud.com/v1
+kind: TestCase
+metadata:
+  name: example-testcase
+spec:
+  image: ccr.ccs.tencentyun.com/ivanscai/test:v0.1
+  commands: ["./test", "--message", "I am executing testcase and pass exitcode 0.", "--exitcode", "0"]

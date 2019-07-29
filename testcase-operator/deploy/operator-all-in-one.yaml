@@ -1,0 +1,205 @@
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  # <plural>.<group>
+  name: summarys.tke.tencentcloud.com
+spec:
+  # /apis/<group>/<version>
+  group: tke.tencentcloud.com
+  # /apis/<group>/<version>
+  version: v1
+  # Namespaced or Cluster
+  scope: Cluster
+  names:
+    # /apis/<group>/<version>/<plural>
+    plural: summarys
+    singular: summary
+    kind: Summary
+    shortNames:
+      - summ
+  subresources:
+    status:
+      totalNumber:
+        type: int
+      passedNumber:
+        type: int
+      failedNumber:
+        type: int
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: testcase-configmap
+data:
+  example: "example-value"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: testcase-operator
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: testcase-operator
+subjects:
+  - kind: ServiceAccount
+    name: testcase-operator
+    namespace: default
+roleRef:
+  kind: ClusterRole
+  name: testcase-operator
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: testcase-operator
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+      - services
+      - endpoints
+      - persistentvolumeclaims
+      - events
+      - configmaps
+      - secrets
+    verbs:
+      - '*'
+  - apiGroups:
+      - ""
+    resources:
+      - namespaces
+    verbs:
+      - get
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+      - daemonsets
+      - replicasets
+      - statefulsets
+    verbs:
+      - '*'
+  - apiGroups:
+      - monitoring.coreos.com
+    resources:
+      - servicemonitors
+    verbs:
+      - get
+      - create
+  - apiGroups:
+      - tke.tencentcloud.com
+    resources:
+      - '*'
+    verbs:
+      - '*'
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  # <plural>.<group>
+  name: testcases.tke.tencentcloud.com
+spec:
+  # /apis/<group>/<version>
+  group: tke.tencentcloud.com
+  # /apis/<group>/<version>
+  version: v1
+  # Namespaced or Cluster
+  scope: Cluster
+  names:
+    # /apis/<group>/<version>/<plural>
+    plural: testcases
+    singular: testcase
+    kind: TestCase
+    shortNames:
+      - tc
+  preserveUnknownFields: false
+  validation:
+    openAPIV3Schema:
+      type: object
+      properties:
+        spec:
+          type: object
+          properties:
+            image:
+              type: string
+            commands:
+              type: array
+              items:
+                type: string
+  subresources:
+    status:
+      # ${NAMESPACE}/${NAME}
+      podName:
+        type: string
+      # result of test case(passed or failed)
+      result:
+        type: string
+      # something that test case print
+      message:
+        type: string
+      completeTime:
+        type: date-time
+---
+apiVersion: tke.tencentcloud.com/v1
+kind: Summary
+metadata:
+  name: testcase-summary
+---
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: testcase-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: testcase-operator
+  template:
+    metadata:
+      labels:
+        name: testcase-operator
+    spec:
+      serviceAccountName: testcase-operator
+      containers:
+        - name: testcase-operator
+          # Replace this with the built image name
+          image: ccr.ccs.tencentyun.com/paas/testcase-operator:v0.3
+          ports:
+            - containerPort: 60000
+              name: metrics
+          command:
+            - testcase-operator
+          imagePullPolicy: Always
+          env:
+            - name: WATCH_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OPERATOR_NAME
+              value: "testcase-operator"
+            - name: SIDECAR_IMAGE
+              value: "ccr.ccs.tencentyun.com/paas/testcase-sidecar:v0.0"
+            - name: SIDECAR_PORT
+              value: "8099"
+            - name: DELAY_SECONDS_AFTER_TESETER_PASSED
+              value: "30"
+            - name: DELAY_SECONDS_AFTER_TESETER_FAILED
+              value: "300"
+            - name: TESTCASE_SUMMARY
+              value: "testcase-summary"
+          volumeMounts:
+            - mountPath: /etc/localtime
+              name: localtime
+      volumes:
+        - name: localtime
+          hostPath:
+            path: /etc/localtime
